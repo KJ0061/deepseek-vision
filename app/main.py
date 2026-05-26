@@ -138,6 +138,10 @@ async def whitelist_middleware(request: Request, call_next):
     if (method, path) in ALLOWED_ROUTES:
         return await call_next(request)
 
+    # Allow Vite-built static assets
+    if method == "GET" and path.startswith("/assets/"):
+        return await call_next(request)
+
     if method == "HEAD":
         return Response(status_code=200)
 
@@ -163,6 +167,10 @@ from app.openai_compat import router as openai_router
 app.include_router(openai_router, prefix="/v1")
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+# Mount hashed assets (JS/CSS produced by Vite)
+if os.path.isdir(os.path.join(_STATIC_DIR, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(_STATIC_DIR, "assets")), name="assets")
 
 
 @app.get("/")
