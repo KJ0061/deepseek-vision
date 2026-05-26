@@ -29,21 +29,6 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "-"
 
 
-_ANSI_RESET = "\033[0m"
-_ANSI_GREEN = "\033[32m"
-_ANSI_YELLOW = "\033[33m"
-_ANSI_RED = "\033[31m"
-
-
-def _colored_ttft(ms: int) -> str:
-    if ms < 5000:
-        color = _ANSI_GREEN
-    elif ms < 10000:
-        color = _ANSI_YELLOW
-    else:
-        color = _ANSI_RED
-    return f"{color}ttft={ms}ms{_ANSI_RESET}"
-
 
 def _log_req(
     *,
@@ -60,7 +45,6 @@ def _log_req(
     server_tool: Optional[Dict[str, Any]] = None,
     error: Optional[str] = None,
     req_size_bytes: Optional[int] = None,
-    ttft_ms: Optional[int] = None,
 ) -> None:
     parts = [
         f"id={request_id}",
@@ -70,8 +54,6 @@ def _log_req(
         f"status={status}",
         f"dur={duration_ms}ms",
     ]
-    if ttft_ms is not None:
-        parts.append(_colored_ttft(ttft_ms))
     parts.extend([
         f"in={input_tokens}",
         f"out={output_tokens}",
@@ -146,12 +128,9 @@ async def _logged_stream(
     server_tool: Optional[Dict[str, Any]] = None
     status = "success"
     error: Optional[str] = None
-    ttft_ms: Optional[int] = None
 
     try:
         async for chunk in gen:
-            if ttft_ms is None and "content_block_delta" in chunk:
-                ttft_ms = int((time.monotonic() - start) * 1000)
             try:
                 if "message_start" in chunk:
                     obj = _extract_sse_data(chunk)
@@ -200,7 +179,6 @@ async def _logged_stream(
             server_tool=server_tool,
             error=error,
             req_size_bytes=(meta or {}).get("request_size_bytes"),
-            ttft_ms=ttft_ms,
         )
         _maybe_dump_slow(
             meta,
