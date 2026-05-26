@@ -56,6 +56,7 @@ _scan_logger = logging.getLogger("app.scan")
 ALLOWED_ROUTES: set[tuple[str, str]] = {
     ("GET", "/health"),
     ("GET", "/status"),
+    ("POST", "/admin/apply"),
     ("GET", "/v1/models"),
     ("POST", "/v1/messages"),
     ("POST", "/v1/messages/count_tokens"),
@@ -181,6 +182,32 @@ async def ui():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.post("/admin/apply")
+async def admin_apply(request: Request):
+    """Write the submitted .env content to disk, then restart the process."""
+    import asyncio
+    import signal
+    body = await request.json()
+    env_text: str = body.get("env", "")
+    if not isinstance(env_text, str):
+        raise HTTPException(status_code=400, detail={"type": "bad_request", "message": "env must be a string"})
+
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    try:
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.write(env_text)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail={"type": "io_error", "message": str(e)})
+
+    # Respond first, then trigger restart after a brief delay so the response is delivered.
+    async def _restart():
+        await asyncio.sleep(0.4)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    asyncio.create_task(_restart())
+    return {"status": "restarting"}
 
 
 @app.get("/status")

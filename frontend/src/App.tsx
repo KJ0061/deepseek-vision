@@ -308,6 +308,8 @@ function ConfigSection() {
   const [form, setForm] = useState<FormState>(DEFAULTS)
   const [generated, setGenerated] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const [applyMsg, setApplyMsg] = useState<string | null>(null)
   const envRef = useRef<HTMLDivElement>(null)
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
@@ -326,6 +328,39 @@ function ConfigSection() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  async function applyAndRestart() {
+    if (!generated) return
+    setApplying(true)
+    setApplyMsg('正在写入配置…')
+    try {
+      const r = await fetch('/admin/apply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ env: generated }),
+      })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      setApplyMsg('服务重启中，请稍候…')
+      // Poll /health until it comes back up (max 30s)
+      const deadline = Date.now() + 30_000
+      await new Promise<void>((resolve, reject) => {
+        const tick = async () => {
+          if (Date.now() > deadline) { reject(new Error('超时')); return }
+          try {
+            const h = await fetch('/health')
+            if (h.ok) { resolve(); return }
+          } catch { /* still restarting */ }
+          setTimeout(tick, 800)
+        }
+        setTimeout(tick, 1500) // give process time to shut down first
+      })
+      setApplyMsg('✓ 配置已生效，服务已恢复')
+      setTimeout(() => { setApplyMsg(null); setApplying(false) }, 3000)
+    } catch (e) {
+      setApplyMsg(`错误：${(e as Error).message}`)
+      setApplying(false)
+    }
   }
 
   const LOG_OPTIONS = ['INFO', 'DEBUG', 'WARNING', 'ERROR'].map(v => ({ label: v, value: v }))
@@ -490,13 +525,31 @@ function ConfigSection() {
           <div className="section-header">
             <span className="section-title">生成结果</span>
             <div className="section-line" />
-            <button className={`btn-copy ${copied ? 'copied' : ''}`} onClick={copyEnv}>
-              {copied ? '已复制 ✓' : '复制'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button className={`btn-copy ${copied ? 'copied' : ''}`} onClick={copyEnv} disabled={applying}>
+                {copied ? '已复制 ✓' : '复制'}
+              </button>
+              <button className="btn btn-primary" onClick={applyAndRestart} disabled={applying}
+                style={{ padding: '6px 16px', fontSize: 13 }}>
+                {applying ? '重启中…' : '应用并重启'}
+              </button>
+            </div>
           </div>
+          {applyMsg && (
+            <div style={{
+              padding: '10px 14px',
+              borderRadius: 'var(--rsm)',
+              background: applyMsg.startsWith('✓') ? 'rgba(23,169,114,.08)' : 'rgba(79,110,247,.07)',
+              border: `1px solid ${applyMsg.startsWith('✓') ? 'rgba(23,169,114,.25)' : 'var(--border)'}`,
+              color: applyMsg.startsWith('✓') ? 'var(--ok)' : 'var(--text2)',
+              fontSize: 14,
+            }}>
+              {applyMsg}
+            </div>
+          )}
           <EnvPreview text={generated} />
           <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.8 }}>
-            将以上内容保存为项目根目录下的 <code>.env</code> 文件，然后执行：
+            也可以手动保存为项目根目录下的 <code>.env</code> 文件后重启服务：
           </div>
           <div className="run-cmd">
             {'docker build -t deepseek-vision . &&\ndocker run --env-file .env -p 8000:8000 deepseek-vision'}
