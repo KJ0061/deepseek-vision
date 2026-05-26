@@ -9,9 +9,18 @@ interface StatusData {
   status: string
   models: string[]
   backends: BackendInfo[]
-  vision: { enabled: boolean; model?: string; base_url?: string }
+  vision: { enabled: boolean; model?: string }
   web_search: { enabled: boolean; provider: string }
   web_fetch: { enabled: boolean }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function randomKey(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let s = 'sk-'
+  for (let i = 0; i < 40; i++) s += chars[Math.floor(Math.random() * chars.length)]
+  return s
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────
@@ -25,15 +34,13 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
-function Pill({ ok, yes = 'Enabled', no = 'Not configured' }: { ok: boolean; yes?: string; no?: string }) {
+function Pill({ ok, yes = '已启用', no = '未配置' }: { ok: boolean; yes?: string; no?: string }) {
   return <span className={`pill ${ok ? 'ok' : 'warn'}`}>{ok ? yes : no}</span>
 }
 
 function Field({
   label, hint, children, className = ''
-}: {
-  label: string; hint?: string; children: React.ReactNode; className?: string
-}) {
+}: { label: string; hint?: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={`field ${className}`}>
       <label className="field-label">{label}</label>
@@ -43,17 +50,15 @@ function Field({
   )
 }
 
-// ── Select wrapper using Base UI ───────────────────────────────────────────
+// ── Select wrapper ─────────────────────────────────────────────────────────
 
-interface SelectFieldProps {
+function SelectField({ label, value, onChange, options, className = '' }: {
   label: string
   value: string
   onChange: (v: string) => void
   options: { label: string; value: string }[]
   className?: string
-}
-
-function SelectField({ label, value, onChange, options, className = '' }: SelectFieldProps) {
+}) {
   return (
     <Field label={label} className={className}>
       <Select.Root value={value} onValueChange={(v) => onChange(v as string)}>
@@ -80,19 +85,84 @@ function SelectField({ label, value, onChange, options, className = '' }: Select
   )
 }
 
-// ── Switch wrapper using Base UI ───────────────────────────────────────────
+// ── Switch wrapper ─────────────────────────────────────────────────────────
 
 function SwitchRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <div className="toggle-row">
       <span>{label}</span>
-      <Switch.Root
-        className="switch-root"
-        checked={checked}
-        onCheckedChange={onChange}
-      >
+      <Switch.Root className="switch-root" checked={checked} onCheckedChange={onChange}>
         <Switch.Thumb className="switch-thumb" />
       </Switch.Root>
+    </div>
+  )
+}
+
+// ── API Key Manager ────────────────────────────────────────────────────────
+
+function ApiKeyManager({ keys, onChange }: {
+  keys: string[]
+  onChange: (keys: string[]) => void
+}) {
+  const [visible, setVisible] = useState<boolean[]>(keys.map(() => false))
+
+  function toggleVisible(i: number) {
+    setVisible(v => { const n = [...v]; n[i] = !n[i]; return n })
+  }
+
+  function update(i: number, val: string) {
+    const next = [...keys]; next[i] = val; onChange(next)
+  }
+
+  function remove(i: number) {
+    const nextKeys = keys.filter((_, j) => j !== i)
+    const nextVis = visible.filter((_, j) => j !== i)
+    onChange(nextKeys)
+    setVisible(nextVis)
+  }
+
+  function add() {
+    onChange([...keys, ''])
+    setVisible([...visible, false])
+  }
+
+  function generate(i: number) {
+    update(i, randomKey())
+  }
+
+  function addGenerated() {
+    const key = randomKey()
+    onChange([...keys, key])
+    setVisible([...visible, false])
+  }
+
+  return (
+    <div>
+      <div className="key-list">
+        {keys.map((k, i) => (
+          <div key={i} className="key-row">
+            <div className="key-input-wrap">
+              <input
+                type={visible[i] ? 'text' : 'password'}
+                value={k}
+                onChange={e => update(i, e.target.value)}
+                placeholder="sk-…"
+                autoComplete="off"
+                className={k ? 'filled' : ''}
+              />
+              <button className="btn-eye" onClick={() => toggleVisible(i)} title={visible[i] ? '隐藏' : '显示'}>
+                {visible[i] ? '🙈' : '👁'}
+              </button>
+            </div>
+            <button className="btn-icon" onClick={() => generate(i)} title="重新生成">🔄</button>
+            <button className="btn-icon danger" onClick={() => remove(i)} title="删除" disabled={keys.length === 1}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div className="key-actions">
+        <button className="btn-sm" onClick={add}>＋ 手动添加</button>
+        <button className="btn-sm accent" onClick={addGenerated}>⚡ 生成新 Key</button>
+      </div>
     </div>
   )
 }
@@ -104,39 +174,37 @@ function StatusSection({ data, offline }: { data: StatusData | null; offline: bo
     return (
       <div className="status-grid">
         <div className="status-card">
-          <div className="sc-label">Proxy</div>
-          <div><span className="pill err">Offline</span></div>
+          <div className="sc-label">代理服务</div>
+          <div><span className="pill err">离线</span></div>
         </div>
       </div>
     )
   }
-
   const backends = data.backends.map(b => b.name).join(', ') || '—'
-
   return (
     <div className="status-grid">
       <div className="status-card">
-        <div className="sc-label">Proxy</div>
-        <div><Pill ok yes="Running" /></div>
+        <div className="sc-label">代理服务</div>
+        <div><Pill ok yes="运行中" /></div>
       </div>
       <div className="status-card">
-        <div className="sc-label">Backends</div>
+        <div className="sc-label">后端</div>
         <div className="sc-value">{backends}</div>
-        <div className="sc-sub">{data.models.length} model(s)</div>
+        <div className="sc-sub">{data.models.length} 个模型</div>
       </div>
       <div className="status-card">
-        <div className="sc-label">Vision</div>
+        <div className="sc-label">视觉中间件</div>
         <div><Pill ok={data.vision.enabled} /></div>
         {data.vision.enabled && <div className="sc-sub">{data.vision.model}</div>}
       </div>
       <div className="status-card">
-        <div className="sc-label">Web Search</div>
+        <div className="sc-label">联网搜索</div>
         <div><Pill ok={data.web_search.enabled} /></div>
         {data.web_search.enabled && <div className="sc-sub">{data.web_search.provider}</div>}
       </div>
       <div className="status-card">
-        <div className="sc-label">Web Fetch</div>
-        <div><Pill ok yes="Ready" /></div>
+        <div className="sc-label">网页抓取</div>
+        <div><Pill ok yes="就绪" /></div>
       </div>
     </div>
   )
@@ -145,7 +213,7 @@ function StatusSection({ data, offline }: { data: StatusData | null; offline: bo
 // ── .env generator ─────────────────────────────────────────────────────────
 
 interface FormState {
-  masterKey: string
+  masterKeys: string[]
   dsKey: string
   dsUrl: string
   dsModels: string
@@ -161,7 +229,7 @@ interface FormState {
 }
 
 const DEFAULTS: FormState = {
-  masterKey: '',
+  masterKeys: [''],
   dsKey: '',
   dsUrl: 'https://api.deepseek.com/anthropic',
   dsModels: 'deepseek-chat,deepseek-reasoner',
@@ -176,72 +244,62 @@ const DEFAULTS: FormState = {
   logLevel: 'INFO',
 }
 
-function envLine(key: string, val: string, comment?: string): string {
-  if (!val) return `# ${key}=`
-  return `${key}=${val}` + (comment ? `  # ${comment}` : '')
+function envLine(key: string, val: string): string {
+  return val ? `${key}=${val}` : `# ${key}=`
 }
 
 function buildEnvText(f: FormState): string {
+  const masterKey = f.masterKeys.filter(Boolean).join(',')
   const isTavily = f.searchProvider === 'tavily'
   return [
-    '# Required',
-    envLine('MASTER_API_KEY', f.masterKey),
+    '# 必填',
+    envLine('MASTER_API_KEY', masterKey),
     envLine('DEEPSEEK_API_KEY', f.dsKey),
     `DEEPSEEK_BASE_URL=${f.dsUrl}`,
     `DEEPSEEK_MODELS=${f.dsModels}`,
     '',
-    '# Vision (optional)',
+    '# 视觉中间件（可选）',
     envLine('VISION_BASE_URL', f.visUrl),
     envLine('VISION_API_KEY', f.visKey),
     envLine('VISION_MODEL', f.visModel),
     '',
-    '# Web Search (optional)',
+    '# 联网搜索（可选）',
     `WEB_SEARCH_PROVIDER=${f.searchProvider}`,
-    isTavily
-      ? envLine('TAVILY_API_KEY', f.searchKey)
-      : envLine('BRAVE_API_KEY', f.searchKey),
+    isTavily ? envLine('TAVILY_API_KEY', f.searchKey) : envLine('BRAVE_API_KEY', f.searchKey),
     '',
-    '# Server',
+    '# 服务',
     `PORT=${f.port}`,
     `LOG_LEVEL=${f.logLevel}`,
   ].join('\n')
 }
 
-type EnvToken = { type: 'key' | 'val' | 'comment' | 'plain'; text: string }
+type TokenType = 'key' | 'val' | 'comment' | 'plain'
 
-function tokenizeLine(line: string): EnvToken[] {
+function tokenizeLine(line: string): { type: TokenType; text: string }[] {
   if (line.startsWith('#')) return [{ type: 'comment', text: line }]
   if (!line.includes('=')) return [{ type: 'plain', text: line }]
-  const eqIdx = line.indexOf('=')
-  const key = line.slice(0, eqIdx)
-  const rest = line.slice(eqIdx + 1)
-  const tokens: EnvToken[] = [
+  const eq = line.indexOf('=')
+  const key = line.slice(0, eq)
+  const rest = line.slice(eq + 1)
+  return [
     { type: 'key', text: key },
     { type: 'plain', text: '=' },
+    { type: 'val', text: rest },
   ]
-  const commentIdx = rest.indexOf('  #')
-  if (commentIdx !== -1) {
-    tokens.push({ type: 'val', text: rest.slice(0, commentIdx) })
-    tokens.push({ type: 'comment', text: rest.slice(commentIdx) })
-  } else {
-    tokens.push({ type: 'val', text: rest })
-  }
-  return tokens
 }
 
 function EnvPreview({ text }: { text: string }) {
   return (
     <div className="env-block">
-      {text.split('\n').map((line, i) => {
-        const tokens = tokenizeLine(line)
-        return (
-          <div key={i}>
-            {tokens.map((t, j) => (
-              <span key={j} className={t.type === 'plain' ? undefined : `e${t.type[0]}`}>{t.text}</span>
-            ))}
-          </div>
-        )
-      })}
+      {text.split('\n').map((line, i) => (
+        <div key={i}>
+          {tokenizeLine(line).map((t, j) => (
+            <span key={j} className={t.type === 'plain' ? undefined : t.type === 'key' ? 'ek' : t.type === 'val' ? 'ev' : 'ec'}>
+              {t.text}
+            </span>
+          ))}
+        </div>
+      ))}
     </div>
   )
 }
@@ -252,7 +310,7 @@ function ConfigSection() {
   const [copied, setCopied] = useState(false)
   const envRef = useRef<HTMLDivElement>(null)
 
-  const set = (key: keyof FormState, val: string | boolean) =>
+  const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm(f => ({ ...f, [key]: val }))
 
   const filledClass = (val: string) => val ? 'filled' : ''
@@ -278,13 +336,13 @@ function ConfigSection() {
 
   return (
     <>
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
         {/* DeepSeek */}
         <div className="form-group">
-          <div className="form-group-title">DeepSeek Upstream</div>
+          <div className="form-group-title">DeepSeek 上游配置</div>
           <div className="form-grid">
-            <Field label="DEEPSEEK_API_KEY" hint="Required. Your DeepSeek API key.">
+            <Field label="DEEPSEEK_API_KEY" hint="必填，你的 DeepSeek API Key">
               <input
                 type="password"
                 value={form.dsKey}
@@ -294,7 +352,7 @@ function ConfigSection() {
                 autoComplete="off"
               />
             </Field>
-            <Field label="DEEPSEEK_BASE_URL" hint="Leave default unless using a mirror.">
+            <Field label="DEEPSEEK_BASE_URL" hint="不使用镜像站则保持默认">
               <input
                 type="text"
                 value={form.dsUrl}
@@ -303,7 +361,7 @@ function ConfigSection() {
               />
             </Field>
             <Field label="DEEPSEEK_MODELS" className="full"
-              hint='Comma-separated. Supports aliasing: client-id:upstream-id'>
+              hint="逗号分隔，支持别名：客户端ID:上游ID，例如 fast:deepseek-chat">
               <input
                 type="text"
                 value={form.dsModels}
@@ -314,31 +372,29 @@ function ConfigSection() {
           </div>
         </div>
 
+        <div className="divider" />
+
         {/* Auth */}
         <div className="form-group">
-          <div className="form-group-title">Proxy Auth</div>
-          <div className="form-grid">
-            <Field label="MASTER_API_KEY" className="full"
-              hint="Required. Keys accepted by this proxy. Comma-separated for multiple keys.">
-              <input
-                type="password"
-                value={form.masterKey}
-                onChange={e => set('masterKey', e.target.value)}
-                placeholder="sk-your-secret"
-                className={filledClass(form.masterKey)}
-                autoComplete="off"
-              />
-            </Field>
-          </div>
+          <div className="form-group-title">代理鉴权 Key（MASTER_API_KEY）</div>
+          <Field label="" hint="客户端使用这些 Key 访问本代理，可添加多个">
+            <ApiKeyManager
+              keys={form.masterKeys}
+              onChange={v => set('masterKeys', v)}
+            />
+          </Field>
         </div>
+
+        <div className="divider" />
 
         {/* Vision */}
         <div className="form-group">
           <div className="form-group-title">
-            Vision Middleware <span className="optional-label">— optional</span>
+            视觉中间件
+            <span className="optional-tag">可选</span>
           </div>
           <div className="form-grid">
-            <Field label="VISION_BASE_URL" hint="Any OpenAI-compatible vision endpoint.">
+            <Field label="VISION_BASE_URL" hint="任何 OpenAI 兼容的视觉接口地址">
               <input
                 type="text"
                 value={form.visUrl}
@@ -357,7 +413,7 @@ function ConfigSection() {
                 autoComplete="off"
               />
             </Field>
-            <Field label="VISION_MODEL" hint="e.g. gpt-4o-mini, qwen-vl-max, glm-4v">
+            <Field label="VISION_MODEL" hint="例如：gpt-4o-mini、qwen-vl-max、glm-4v">
               <input
                 type="text"
                 value={form.visModel}
@@ -369,14 +425,17 @@ function ConfigSection() {
           </div>
         </div>
 
+        <div className="divider" />
+
         {/* Web tools */}
         <div className="form-group">
           <div className="form-group-title">
-            Web Tools <span className="optional-label">— optional</span>
+            联网工具
+            <span className="optional-tag">可选</span>
           </div>
           <div className="form-grid">
             <SelectField
-              label="WEB_SEARCH_PROVIDER"
+              label="搜索服务商"
               value={form.searchProvider}
               onChange={v => set('searchProvider', v)}
               options={PROVIDER_OPTIONS}
@@ -393,20 +452,22 @@ function ConfigSection() {
             </Field>
           </div>
           <div style={{ paddingTop: 4 }}>
-            <SwitchRow label="Enable web_search tool" checked={form.webSearch} onChange={v => set('webSearch', v)} />
-            <SwitchRow label="Enable web_fetch tool" checked={form.webFetch} onChange={v => set('webFetch', v)} />
+            <SwitchRow label="启用联网搜索工具（web_search）" checked={form.webSearch} onChange={v => set('webSearch', v)} />
+            <SwitchRow label="启用网页抓取工具（web_fetch）" checked={form.webFetch} onChange={v => set('webFetch', v)} />
           </div>
         </div>
 
+        <div className="divider" />
+
         {/* Server */}
         <div className="form-group">
-          <div className="form-group-title">Server</div>
+          <div className="form-group-title">服务器</div>
           <div className="form-grid">
-            <Field label="PORT">
+            <Field label="PORT（端口）">
               <input type="text" value={form.port} onChange={e => set('port', e.target.value)} />
             </Field>
             <SelectField
-              label="LOG_LEVEL"
+              label="LOG_LEVEL（日志级别）"
               value={form.logLevel}
               onChange={v => set('logLevel', v)}
               options={LOG_OPTIONS}
@@ -416,26 +477,26 @@ function ConfigSection() {
 
         <div className="btn-row">
           <button className="btn btn-ghost" onClick={() => { setForm(DEFAULTS); setGenerated(null) }}>
-            Reset
+            重置
           </button>
           <button className="btn btn-primary" onClick={generate}>
-            Generate .env
+            生成 .env 配置文件
           </button>
         </div>
       </div>
 
       {generated && (
         <div className="section" ref={envRef}>
-          <div className="section-header" style={{ alignItems: 'center' }}>
-            <span className="section-title">Generated .env</span>
+          <div className="section-header">
+            <span className="section-title">生成结果</span>
             <div className="section-line" />
             <button className={`btn-copy ${copied ? 'copied' : ''}`} onClick={copyEnv}>
-              {copied ? 'Copied ✓' : 'Copy'}
+              {copied ? '已复制 ✓' : '复制'}
             </button>
           </div>
           <EnvPreview text={generated} />
-          <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.8 }}>
-            Save as <code>.env</code> in the project root, then run:
+          <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.8 }}>
+            将以上内容保存为项目根目录下的 <code>.env</code> 文件，然后执行：
           </div>
           <div className="run-cmd">
             {'docker build -t deepseek-vision . &&\ndocker run --env-file .env -p 8000:8000 deepseek-vision'}
@@ -473,14 +534,14 @@ export default function App() {
   }, [])
 
   const liveClass = offline ? 'err' : status ? 'ok' : ''
-  const liveLabel = offline ? 'offline' : status ? 'online' : 'checking…'
+  const liveLabel = offline ? '离线' : status ? '在线' : '检测中…'
 
   return (
     <div className="layout">
       <header>
         <span className="header-logo">👁</span>
         <span className="header-title">deepseek-vision</span>
-        <span className="header-badge">Dashboard</span>
+        <span className="header-badge">控制台</span>
         <div className="header-live">
           <div className={`live-dot ${liveClass}`} />
           <span>{liveLabel}</span>
@@ -489,22 +550,22 @@ export default function App() {
 
       <main>
         <div className="section">
-          <SectionHeader title="Service Status" />
+          <SectionHeader title="服务状态" />
           <StatusSection data={status} offline={offline} />
         </div>
 
         <div className="section">
-          <SectionHeader title="Available Models" />
+          <SectionHeader title="可用模型" />
           <div className="card">
             {models.length > 0
               ? <div className="model-list">{models.map(m => <span key={m} className="model-tag">{m}</span>)}</div>
-              : <span className="empty-text">No models registered — set DEEPSEEK_API_KEY and restart.</span>
+              : <span className="empty-text">暂无模型 — 请设置 DEEPSEEK_API_KEY 并重启服务</span>
             }
           </div>
         </div>
 
         <div className="section">
-          <SectionHeader title="Configuration" />
+          <SectionHeader title="配置生成" />
           <ConfigSection />
         </div>
       </main>
