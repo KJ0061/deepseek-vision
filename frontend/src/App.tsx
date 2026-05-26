@@ -232,14 +232,14 @@ interface FormState {
 
 const DEFAULTS: FormState = {
   adminPassword: '',
-  masterKeys: [''],
+  masterKeys: [randomKey()],
   dsKey: '',
 
   dsUrl: 'https://api.deepseek.com/anthropic',
   dsModels: 'deepseek-v4-pro,deepseek-v4-flash',
-  visUrl: '',
+  visUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   visKey: '',
-  visModel: '',
+  visModel: 'qwen3.6-flash',
   searchProvider: 'tavily',
   searchKey: '',
   visMaxImages: '5',
@@ -451,7 +451,7 @@ function ConfigSection({ token }: { token: string }) {
                 type="text"
                 value={form.visUrl}
                 onChange={e => set('visUrl', e.target.value)}
-                placeholder="https://api.openai.com/v1"
+                placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
                 className={filledClass(form.visUrl)}
               />
             </Field>
@@ -470,7 +470,7 @@ function ConfigSection({ token }: { token: string }) {
                 type="text"
                 value={form.visModel}
                 onChange={e => set('visModel', e.target.value)}
-                placeholder="gpt-4o-mini"
+                placeholder="qwen3.6-flash"
                 className={filledClass(form.visModel)}
               />
             </Field>

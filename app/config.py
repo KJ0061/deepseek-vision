@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     extra_backend_models: Optional[str] = Field(default=None, alias="EXTRA_BACKEND_MODELS")
 
     # Vision middleware: any OpenAI-compatible vision endpoint
-    vision_base_url: Optional[str] = Field(default=None, alias="VISION_BASE_URL")
+    vision_base_url: Optional[str] = Field(default="https://dashscope.aliyuncs.com/compatible-mode/v1", alias="VISION_BASE_URL")
     vision_api_key: Optional[str] = Field(default=None, alias="VISION_API_KEY")
-    vision_model: Optional[str] = Field(default=None, alias="VISION_MODEL")
+    vision_model: Optional[str] = Field(default="qwen3.6-flash", alias="VISION_MODEL")
     vision_prompt: str = Field(
         default="Describe this image in detail. Be specific about text, objects, layout, and colors.",
         alias="VISION_PROMPT",
