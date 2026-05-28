@@ -22,6 +22,7 @@ WORKDIR /app
 
 # Install Python deps (cached layer — only re-runs when pyproject.toml changes)
 COPY pyproject.toml ./
+COPY README.md .
 RUN pip install --no-cache-dir . && \
     pip cache purge
 
